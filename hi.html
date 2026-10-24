@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Code Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000000; /* Pure black background during load */
+        }
+        #render-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background-color: #ffffff;
+        }
+    </style>
+</head>
+<body>
+    <!-- The entire page is just the iframe. Hidden initially. -->
+    <iframe id="render-frame" class="hidden" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"></iframe>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ====================================================
+        // === SET YOUR DESIRED SITE ID HERE ==================
+        // ====================================================
+        const TARGET_SITE_ID = "hi"; 
+        // ====================================================
+
+        // Requested Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCCz2h7lFPZ1v7kzM9mGcgRq93VtxK9wg8",
+            authDomain: "checkers-dev-62780.firebaseapp.com",
+            projectId: "checkers-dev-62780",
+            storageBucket: "checkers-dev-62780.firebasestorage.app",
+            messagingSenderId: "460615804917",
+            appId: "1:460615804917:web:8f40eab81e5e3810b822bc"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        const frame = document.getElementById('render-frame');
+        const COLLECTION_NAME = 'sites'; 
+
+        // Helper to handle errors by redirecting to a 404 page
+        function handleError(reason) {
+            console.error("Failed to load site:", reason);
+            window.location.href = "https://checkers.page/404.html";
+        }
+
+        async function loadSite(id) {
+            if (!id) {
+                handleError("No Site ID provided.");
+                return;
+            }
+
+            try {
+                // Try anonymous auth just in case Firestore rules require it for reading
+                try {
+                    await signInAnonymously(auth);
+                } catch (e) {
+                    console.warn("Auth skipped or failed. Attempting to read anyway.", e);
+                }
+
+                // Attempt to fetch the site from Firestore
+                const docRef = doc(db, COLLECTION_NAME, id);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    const code = data.code || data.html || data.content || data.source;
+
+                    if (code) {
+                        // SUCCESS: Show iframe and inject the full HTML code
+                        frame.classList.remove('hidden');
+                        frame.srcdoc = code;
+                    } else {
+                        handleError(`Site ID '${id}' exists but contains no recognized code field.`);
+                    }
+                } else {
+                    // ID DOES NOT EXIST: Redirect to 404
+                    handleError(`Site ID '${id}' does not exist in Firebase.`);
+                }
+            } catch (error) {
+                handleError(`Database Error: ${error.message}`);
+            }
+        }
+
+        // Immediately run the fetch process with the hardcoded ID
+        loadSite(TARGET_SITE_ID);
+    </script>
+</body>
+</html>
