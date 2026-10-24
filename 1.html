@@ -3,18 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Firebase Code Viewer.</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Loading...</title>
     <style>
-        body, html {
+        html, body {
             margin: 0;
             padding: 0;
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #000000; /* Pure black background during load */
+            background-color: #000000;
         }
         #render-frame {
+            display: none;
             width: 100%;
             height: 100%;
             border: none;
@@ -23,21 +23,18 @@
     </style>
 </head>
 <body>
-    <!-- The entire page is just the iframe. Hidden initially. -->
-    <iframe id="render-frame" class="hidden" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"></iframe>
-    
+    <iframe id="render-frame" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"></iframe>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // ====================================================
-        // === SET YOUR DESIRED SITE ID HERE ==================
-        // ====================================================
-        const TARGET_SITE_ID = "hi"; 
-        // ====================================================
+        // ===== SETTINGS =====
+        const TARGET_SITE_ID = "hi";
+        const COLLECTION_NAME = "sites";
+        const DEBUG = false; // true = show errors on screen instead of redirecting to 404
+        // ====================
 
-        // Requested Firebase Configuration
         const firebaseConfig = {
             apiKey: "AIzaSyCCz2h7lFPZ1v7kzM9mGcgRq93VtxK9wg8",
             authDomain: "checkers-dev-62780.firebaseapp.com",
@@ -49,57 +46,66 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const auth = getAuth(app);
+        const frame = document.getElementById("render-frame");
 
-        const frame = document.getElementById('render-frame');
-        const COLLECTION_NAME = 'sites'; 
+        function handleError(reason) {
+            console.error("Failed to load site:", reason);
+            if (DEBUG) {
+                const pre = document.createElement("pre");
+                pre.style.cssText = "color:#fff;padding:20px;white-space:pre-wrap";
+                pre.textContent = reason;
+                document.body.appendChild(pre);
+            } else {
+                window.location.href = "https://checkers.page/404.html";
+            }
+        }
 
-        // Helper to handle errors by redirecting to a 404 page
-function handleError(reason) {
-    console.error("Failed to load site:", reason);
-    document.body.innerHTML =
-        '<pre style="color:#fff;padding:20px;white-space:pre-wrap">' + reason + '</pre>';
-}
+        // Copy <title> and favicon from the stored code onto this page
+        function applyHead(code) {
+            // DOMParser builds a detached document, so nothing in it runs
+            const parsed = new DOMParser().parseFromString(code, "text/html");
 
-        async function loadSite(id) {
-            if (!id) {
-                handleError("No Site ID provided.");
-                return;
+            const t = parsed.querySelector("title");
+            if (t && t.textContent.trim()) {
+                document.title = t.textContent.trim();
             }
 
+            const icon = parsed.querySelector('link[rel~="icon"]');
+            if (icon && icon.getAttribute("href")) {
+                document.querySelectorAll('link[rel~="icon"]').forEach(l => l.remove());
+                const link = document.createElement("link");
+                link.rel = "icon";
+                link.href = icon.getAttribute("href");
+                if (icon.getAttribute("type")) link.type = icon.getAttribute("type");
+                document.head.appendChild(link);
+            }
+        }
+
+        async function loadSite(id) {
+            if (!id) return handleError("No Site ID provided.");
+
             try {
-                // Try anonymous auth just in case Firestore rules require it for reading
-                try {
-                    await signInAnonymously(auth);
-                } catch (e) {
-                    console.warn("Auth skipped or failed. Attempting to read anyway.", e);
+                const docSnap = await getDoc(doc(db, COLLECTION_NAME, id));
+
+                if (!docSnap.exists()) {
+                    return handleError(`Site ID '${id}' does not exist in Firebase.`);
                 }
 
-                // Attempt to fetch the site from Firestore
-                const docRef = doc(db, COLLECTION_NAME, id);
-                const docSnap = await getDoc(docRef);
+                const data = docSnap.data();
+                const code = data.code || data.html || data.content || data.source;
 
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    const code = data.code || data.html || data.content || data.source;
-
-                    if (code) {
-                        // SUCCESS: Show iframe and inject the full HTML code
-                        frame.classList.remove('hidden');
-                        frame.srcdoc = code;
-                    } else {
-                        handleError(`Site ID '${id}' exists but contains no recognized code field.`);
-                    }
-                } else {
-                    // ID DOES NOT EXIST: Redirect to 404
-                    handleError(`Site ID '${id}' does not exist in Firebase.`);
+                if (!code) {
+                    return handleError(`Site ID '${id}' exists but contains no recognized code field.`);
                 }
+
+                applyHead(code);
+                frame.style.display = "block";
+                frame.srcdoc = code;
             } catch (error) {
                 handleError(`Database Error: ${error.message}`);
             }
         }
 
-        // Immediately run the fetch process with the hardcoded ID
         loadSite(TARGET_SITE_ID);
     </script>
 </body>
