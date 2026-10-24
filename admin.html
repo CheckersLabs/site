@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loading...</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000000;
+        }
+        #render-frame {
+            display: none;
+            width: 100%;
+            height: 100%;
+            border: none;
+            background-color: #ffffff;
+        }
+    </style>
+</head>
+<body>
+    <iframe id="render-frame" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"></iframe>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ===== SETTINGS =====
+        const TARGET_SITE_ID = "hi";
+        const COLLECTION_NAME = "sites";
+        const DEBUG = false; // true = show errors on screen instead of redirecting to 404
+        // ====================
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCCz2h7lFPZ1v7kzM9mGcgRq93VtxK9wg8",
+            authDomain: "checkers-dev-62780.firebaseapp.com",
+            projectId: "checkers-dev-62780",
+            storageBucket: "checkers-dev-62780.firebasestorage.app",
+            messagingSenderId: "460615804917",
+            appId: "1:460615804917:web:8f40eab81e5e3810b822bc"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const frame = document.getElementById("render-frame");
+
+        function handleError(reason) {
+            console.error("Failed to load site:", reason);
+            if (DEBUG) {
+                const pre = document.createElement("pre");
+                pre.style.cssText = "color:#fff;padding:20px;white-space:pre-wrap";
+                pre.textContent = reason;
+                document.body.appendChild(pre);
+            } else {
+                window.location.href = "https://checkers.page/404.html";
+            }
+        }
+
+        // Copy <title> and favicon from the stored code onto this page
+        function applyHead(code) {
+            // DOMParser builds a detached document, so nothing in it runs
+            const parsed = new DOMParser().parseFromString(code, "text/html");
+
+            const t = parsed.querySelector("title");
+            if (t && t.textContent.trim()) {
+                document.title = t.textContent.trim();
+            }
+
+            const icon = parsed.querySelector('link[rel~="icon"]');
+            if (icon && icon.getAttribute("href")) {
+                document.querySelectorAll('link[rel~="icon"]').forEach(l => l.remove());
+                const link = document.createElement("link");
+                link.rel = "icon";
+                link.href = icon.getAttribute("href");
+                if (icon.getAttribute("type")) link.type = icon.getAttribute("type");
+                document.head.appendChild(link);
+            }
+        }
+
+        async function loadSite(id) {
+            if (!id) return handleError("No Site ID provided.");
+
+            try {
+                const docSnap = await getDoc(doc(db, COLLECTION_NAME, id));
+
+                if (!docSnap.exists()) {
+                    return handleError(`Site ID '${id}' does not exist in Firebase.`);
+                }
+
+                const data = docSnap.data();
+                const code = data.code || data.html || data.content || data.source;
+
+                if (!code) {
+                    return handleError(`Site ID '${id}' exists but contains no recognized code field.`);
+                }
+
+                applyHead(code);
+                frame.style.display = "block";
+                frame.srcdoc = code;
+            } catch (error) {
+                handleError(`Database Error: ${error.message}`);
+            }
+        }
+
+        loadSite(TARGET_SITE_ID);
+    </script>
+</body>
+</html>
