@@ -55,10 +55,11 @@
         const COLLECTION_NAME = 'sites'; 
 
         // Helper to handle errors by redirecting to a 404 page
-        function handleError(reason) {
-            console.error("Failed to load site:", reason);
-            window.location.href = "https://sites.checkers.page/hi.html";
-        }
+function handleError(reason) {
+    console.error("Failed to load site:", reason);
+    document.body.innerHTML =
+        '<pre style="color:#fff;padding:20px;white-space:pre-wrap">' + reason + '</pre>';
+}
 
         async function loadSite(id) {
             if (!id) {
